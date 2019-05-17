@@ -3,7 +3,7 @@
 import sys
 import os
 
-sys.path.append('C:\\Users\\彰平\\python_learn\\KYS\\py')
+sys.path.append('C:\\Users\\***\\python_learn\\KYS\\py')
 #sys.path
 
 # 入力チェック
