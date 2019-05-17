@@ -30,7 +30,7 @@ db_config = {
     'host': 'localhost',
     'db': 'everydb',  # Database Name
     'user': 'root',
-    'passwd': 'systemsss',
+    'passwd': '*****',
     'charset': 'utf8',
 }
 
