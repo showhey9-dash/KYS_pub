@@ -37,7 +37,7 @@ conn = mysqlCon.connect(host='localhost', user='root', passwd='systemsss', db='e
 
 # Targetの予想コメント末尾に「　モデルＸ推奨馬」と記載
 def writeYosouComment(modelType, raceId):
-    year = "2019"
+    year = "2020"
     # 対象ファイルを特定
     fileDir = 'C:\TFJV\MY_DATA\YOS_COM\\' + year
 

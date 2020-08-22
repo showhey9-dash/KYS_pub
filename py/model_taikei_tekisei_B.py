@@ -2,7 +2,7 @@
 #
 # JRDVの体系コードとレース結果を用いてコース毎の特性をつかむ
 # 当日出走する馬達の中から体系的にマッチするものを抽出する
-# 2019.04.26
+# 2019.05.21
 #
 # 使用data：
 #   JRDVレース結果（テーブル名JRDV_UMA_RACE）
@@ -17,6 +17,8 @@
 # 　　　　　注釈③：対象クラスは1000万以上クラス（下級クラスはノイズが多そう）
 # 前処理 該当日に出走する馬たちのデータをJRDV_UMA_TAIKEIに登録しておく
 #       ソース：競走馬_馬体走法変換データ作成.ipynb
+# アルゴリズム
+#   勾配ブースティング
 
 # import
 import sys
@@ -29,8 +31,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import sklearn.model_selection as ms
-# 決定木
-from sklearn.tree import DecisionTreeClassifier
+# 勾配ブースティング
+import xgboost as xgb
 from datetime import datetime, timedelta
 from sklearn import tree
 
@@ -49,7 +51,7 @@ db_config = {
 # csvファイルを取得
 def getRaceCsvWithTaikei():
     print('getRaceCsvWithTaikei--start')
-    path = "../csv/taikeiA"
+    path = "../csv/taikeiB"
     files = os.listdir(path)
     files_file = [f for f in files if os.path.isfile(os.path.join(path, f))]
     # print(files_file)
@@ -60,7 +62,7 @@ def getRaceCsvWithTaikei():
     for fileName in files_file:
         # 学習データファイルの読み込み（リスト分）
         # print(type(fileName))
-        filePath = '../csv/taikeiA/' + fileName
+        filePath = '../csv/taikeiB/' + fileName
         file1 = pd.read_csv(filePath, engine='python', encoding='cp932', index_col=None, dtype='object')
         # 欠損行を削除
         file1 = file1.dropna(how='any')
@@ -76,7 +78,7 @@ def getRaceCsvWithTaikei():
 
     print(fileAll.dtypes)
     print(len(fileAll))
-    fileAll.to_csv('sample20200501.csv')
+    fileAll.to_csv('sample20200521.csv')
     return fileAll
 
 
@@ -162,7 +164,7 @@ def split_all_taikei_code(df):
     df['taikei_14'] = taikei_14
     df['taikei_15'] = taikei_15
 
-    # print(df.dtypes)
+    print(df.dtypes)
     # print(df)
     return df
 
@@ -170,9 +172,9 @@ def split_all_taikei_code(df):
 # モデルの学習
 def learnTaileiTekisei(nengappi):
     print('learnTaileiTekisei--start')
-    # 2017、2019年のデータをcsvから取得①
+    # 2017、2020年のデータをcsvから取得①
     # df1 = getRaceCsvWithTaikei()
-    # 2019年の試験データ前日までのデータを取得②
+    # 2020年の試験データ前日までのデータを取得②
     df = getRaceResultWithTaikei(nengappi)
     # ①と②を結合
     # df = pd.concat([df1, df2])
@@ -180,27 +182,50 @@ def learnTaileiTekisei(nengappi):
     # print(len(df))
     # 体系コードを分割
     df = split_all_taikei_code(df)
+    df = df.drop('BabaCD', 1)
+    df = df.drop('TaikeiCode', 1)
+    # print(df)
+    # dfの各データ型をintに変換
+    df_int = df.astype('int64')
+    print(df_int.dtypes)
     # df.to_csv('learnTaileiTekisei_before_split.csv')
     # 学習データをさらに学習用と試験用に分割する
-    X_setsumei = df.drop('TaikeiTekisei', 1)
-    X_setsumei = X_setsumei.drop('BabaCD', 1)
-    X_setsumei = X_setsumei.drop('TaikeiCode', 1)
-    X_setsumei.to_csv('sample20200501_2.csv')
-    Y_mokuteki = df.TaikeiTekisei
+    X_setsumei = df_int.drop('TaikeiTekisei', 1)
+
+    X_setsumei.to_csv('sample20200521_2.csv')
+    Y_mokuteki = df_int.TaikeiTekisei
     # print(Y_mokuteki.dtypes)
     # print(X_setsumei)
     # print(Y_mokuteki)
     X_setsumei_train, X_setsumei_test, Y_mokuteki_train, Y_mokuteki_test = ms.train_test_split(X_setsumei, Y_mokuteki,
-                                                                                               test_size=0.3)
-    model = DecisionTreeClassifier(max_depth=8, random_state=0)
+                                                                                               test_size=0.3,
+                                                                                               random_state=42,
+                                                                                               # stratify=y
+                                                                                               )
+    # 学習する
+    model = xgb.XGBClassifier(objective='binary:logistic',
+                            # 'num_boost_round' の代わり
+                            # adding 1 estimator per round
+                            n_estimators=1000)
     # 学習
-    model.fit(X_setsumei, Y_mokuteki)
+    evals_result = {}
+    model.fit(X_setsumei, Y_mokuteki,
+              eval_metric='logloss',
+              # 学習時に用いる検証用データ
+              eval_set=[
+                  (X_setsumei_train, Y_mokuteki_train),
+                  (X_setsumei_test, Y_mokuteki_test),
+              ],
+              early_stopping_rounds=10,
+              # 学習過程の記録はコールバックAPIで登録する
+              callbacks=[xgb.callback.record_evaluation(evals_result)],
+              )
 
     # 学習データからの予測値
     predict_train = model.predict(X_setsumei_train)
     # csvファイルとして保存
     predict_train_df = pd.DataFrame(predict_train)
-    predict_train_df.to_csv('../output/out_predict_train.csv')
+    predict_train_df.to_csv('../output/out_predict_train_taikeiB.csv')
     # テストデータからの予測値
     predict_test = model.predict(X_setsumei_test)
     # print(predict_test)
@@ -284,7 +309,7 @@ def writeYosouComment(modelType, raceId):
     # raceIdをstrに
     raceIdStr = str(raceId)
     raceIds = raceIdStr[0:6]
-    print(raceIds)
+    # print(raceIds)
 
     # 予想コメントファイル名
     ycFileName = "YC" + raceIds + ".dat"
@@ -303,7 +328,7 @@ def writeYosouComment(modelType, raceId):
             # 更新対象行を特定
             # あれば、文言の更新
             if raceId in inLine:
-                print(str(i) + ":" + inLine)
+                # print(str(i) + ":" + inLine)
                 lineIndex = i
                 newLine = inLine.rstrip('\n') + modelType + "\n"
                 break
@@ -338,13 +363,13 @@ def output(data3, nengappi):
             raceId = umaDataCol['jyoCd'] + umaDataCol['Year'] + umaDataCol['Kaiji'] + umaDataCol['Nichiji'] + umaDataCol['RaceNum'] + umaDataCol['Umaban']
             # print(raceId)
             #print(type(raceId))
-            writeYosouComment(" 体系モデルA推奨馬", raceId)
+            writeYosouComment(" 体系モデルB推奨馬", raceId)
             raceId_index = pd.DataFrame([[umaDataCol['jyoCd'], umaDataCol['Year'], umaDataCol['Kaiji'], umaDataCol['Nichiji'], umaDataCol['RaceNum'], umaDataCol['Umaban'], umaDataCol['Bamei']]], columns=['jyoCd','Year','Kaiji','Nichiji','RaceNum','Umaban','Bamei'] )
             #print(raceId_index)
             raceIdList = pd.concat([raceIdList, raceId_index])
     # csv出力
-    path = "../output/csv/taikeiA/" + nengappi + '.csv'
-    raceIdList.to_csv(path, encoding='shift_jis')
+    path = "../output/csv/taikeiB/" + nengappi + '.csv'
+    raceIdList.to_csv(path)
 
 
 # 入力チェック
@@ -374,7 +399,7 @@ def inputChk(year, startDay, endDay):
 # import
 def execute(fromDateStr, toDateStr):
     startTime = datetime.now()
-    print("start:model_taikei_tekisei_A" + str(startTime))
+    print("start:model_taikei_tekisei_B" + str(startTime))
 
     # 引数をdate型に
     fromDate = datetime(int(fromDateStr[0:4]), int(fromDateStr[4:6]), int(fromDateStr[6:8]))
@@ -400,8 +425,12 @@ def execute(fromDateStr, toDateStr):
             model = learnTaileiTekisei(bacDate)
 
         test_df_trim_af = test_df_trim(test_df)
+        # データ型をintに変換
+        test_df_trim_af_int = test_df_trim_af.astype('int64')
+        print(test_df_trim_af_int.dtypes)
+        # test_df = test_df.astype('float')
         # テストデータの評価
-        data3 = model_evaluation(model, test_df, test_df_trim_af)
+        data3 = model_evaluation(model, test_df, test_df_trim_af_int)
         # 該当馬を出力（TFへ書き込みetc）
         output(data3, bacDate)
 

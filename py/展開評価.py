@@ -400,7 +400,7 @@ def exportTenkaiCsv(resultHanteiList, year, startDay, endDay):
 # メイン処理
 
 
-year = "2019"
+year = "2020"
 startDay = "0128"
 endDay = "0129"
 

@@ -2,7 +2,7 @@
 # ※※動作検証前
 
 def writeYosouComment(modelType, raceId):
-    year = "2019"
+    year = "2020"
     # 対象ファイルを特定
     fileDir = 'C:\TFJV\MY_DATA\YOS_COM\\' + year
 

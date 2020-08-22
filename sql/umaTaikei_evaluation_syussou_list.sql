@@ -3,7 +3,7 @@
 
 select
   jut.jyoCd, 
-  jrd.kyori,
+  jrd.Kyori,
   jrd.TrackCD,
   jrd.LR,
   jut.TaikeiCode,

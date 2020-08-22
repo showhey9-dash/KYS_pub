@@ -57,6 +57,7 @@ def get_model_extra_list(model_type, nengappi):
         file1 = pd.read_csv(data_path, engine='python', encoding='cp932', index_col=None, dtype='object')
     except Exception as e:
         print('払戻情報なし')
+        print(e)
         return None
 
     # ファイル内の件数分、競争結果の取得
@@ -208,7 +209,7 @@ def aggre_kyosou_seiseki(race_result_list, nengappi):
     return result
 
 
-# 集計一覧ファイルに追記
+# csv出力：集計一覧ファイルに追記
 def write_aggre_list(aggre_result, model_type, nengappi):
     # 集計一覧ファイルを読み込む（csv）
     # outputディレクトリ以下のパスを指定
