@@ -43,6 +43,9 @@ conn = MySQLdb.connect(host=db_config['host'], db=db_config['db'], user=db_confi
 # メイン処理
 def execute():
 
+    # 既存データ削除
+    delete_matched_year()
+
     # コース一覧取得
     course_list = get_course_list()
 
@@ -51,32 +54,32 @@ def execute():
         print(row)
 
         # 枠集計データ登録
-        #aggre_waku(row)
+        aggre_waku(row)
 
 
         # 騎手集計データ登録
-        #aggre_kisyu(row)
+        aggre_kisyu(row)
 
         # 調教師集計データ登録
-        #aggre_chokyosi(row)
+        aggre_chokyosi(row)
 
         # 血統　父集計データ登録
-        #aggre_father(row)
+        aggre_father(row)
 
         # 血統　父タイプ集計データ登録
         aggre_father_type(row)
 
         # 血統　BMS集計データ登録
-        #aggre_bms(row)
+        aggre_bms(row)
 
         # 血統　BMSタイプ集計データ登録
         aggre_bms_type(row)
 
         # 血統　ニックス集計データ登録
-        #aggre_knicks(row)
+        aggre_knicks(row)
 
         # 血統　ニックスタイプ集計データ登録
-        # aggre_knicks_type(row)
+        aggre_knicks_type(row)
 
         # テスト用
         #if i ==3 :
@@ -132,7 +135,7 @@ def  aggre_factor(fact_name, row, file_path ):
         # insert文なので処理件数が返却
         # 検索開始年は2015年でベタ。綺麗なデータが登録されてからは現在年に切り替えればよい
         #df = psql.read_sql(sql, conn, params={"cond_year": "2015", "jyocd": jyo_cd, "kyori": kyori, "trackcd": track_cd})
-        df = db.execute(sql, {'cond_year': '2015', 'jyocd': jyo_cd, 'kyori': kyori, 'trackcd': track_cd})
+        df = db.execute(sql, {'cond_year': '2022', 'jyocd': jyo_cd, 'kyori': kyori, 'trackcd': track_cd})
         # print("sql実行終了")
         # pd.set_option('display.max_columns', 100)
         print(df)
@@ -213,6 +216,15 @@ def aggre_knicks_type(row):
     aggre_factor(fact_name, row, file_path)
 
 
+# 該当条件で既に傾向抽出しているデータを削除する
+# 傾向該当情報（年単位）
+def delete_matched_year():
+
+    db = conn.cursor(MySQLdb.cursors.DictCursor)
+    sql = 'delete from Aggre_summary_stock where Year = "2022" '
+    db.execute(sql)
+    conn.commit()
+
 # 入力チェック
 def inputChk(year):
     print('start--inputChk')
@@ -237,7 +249,7 @@ def main():
 
     """
     year = input("Year?: ")
-
+    
     if not inputChk(year):
         print('---end---')
         sys.exit()

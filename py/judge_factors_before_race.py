@@ -7,6 +7,7 @@
 # 集計用テーブル　： Aggre_summary_stock
 # データ表示方法　：　DJangoを使ったWebアプリ or AppSheetからの参照
 # 判断結果登録テーブル　：　（新規作成）？AppSheet使うならGoogleDriveにスプレッドシートに出力する
+#                           20200820 PowerBIに表示
 
 
 # import
@@ -18,6 +19,7 @@ import pandas as pd
 import pandas.io.sql as psql
 import numpy as np
 import requests
+import subprocess
 """
 # from pandas.tools.plotting import scatter_matrix
 import matplotlib.pyplot as plt
@@ -67,6 +69,7 @@ def execute(year, monthday, time):
 
         # 既存データ削除
         delete_matched_race(row)
+        delete_uma_evaluation(row)
 
         # 対象レースに出走する馬情報の取得
         syussouba_list = get_syussouba_list(row)
@@ -82,9 +85,12 @@ def execute(year, monthday, time):
             print(row2['RaceNum'])
             print(row2['Umaban'])
 
-            match_trand = pd.DataFrame(np.ndarray(9).reshape(1,9), dtype="object",
+            # 20210626 各ファクターの値のみを入れる列を追加
+            match_trand = pd.DataFrame(np.ndarray(17).reshape(1,17), dtype="object",
                                        index=['row_0'], columns=['waku', 'kisyu', 'cyokyosi', 'father', 'father_type',
-                                                                 'bms', 'bms_type', 'knicks', 'knicks_type'])
+                                                                 'bms', 'bms_type', 'knicks', 'knicks_type',
+                                                                 'waku_v', 'kisyu_v', 'chokyosi_v', 'father_v',
+                                                                 'father_type_v', 'bms_v', 'bms_Type_v', 'knicks_v'])
             # print(match_trand.dtypes)
 
             # 枠
@@ -97,7 +103,7 @@ def execute(year, monthday, time):
             match_trand.at['row_0', 'chokyosi'] = get_match_factor(row2, race_trand_list, "ChokyosiRyakusyo", "調教師")
 
             # 父
-            match_trand.at['row_0', 'father'] = get_match_factor(row2, race_trand_list, "Father", "調教師")
+            match_trand.at['row_0', 'father'] = get_match_factor(row2, race_trand_list, "Father", "種牡馬")
 
             # 父タイプ
             match_trand.at['row_0', 'father_type'] = get_match_factor(row2, race_trand_list, "FatherType", "種牡馬タイプ")
@@ -116,20 +122,63 @@ def execute(year, monthday, time):
 
             # 蓄積情報をXXXに登録（追加する）
 
-            # 合致結果をテーブルにUPSERT
+            # 枠番_値
+            match_trand.at['row_0', "waku_v"] = get_match_factor_v(row2, race_trand_list, "Wakuban", "枠")
+
+            # 騎手_値
+            match_trand.at['row_0', 'kisyu_v'] = get_match_factor_v(row2, race_trand_list, "KisyuRyakusyo", "騎手")
+
+            # 調教師_値
+            match_trand.at['row_0', 'chokyosi_v'] = get_match_factor_v(row2, race_trand_list, "ChokyosiRyakusyo", "調教師")
+
+            # 種牡馬_値
+            match_trand.at['row_0', 'father_v'] = get_match_factor_v(row2, race_trand_list, "Father", "種牡馬")
+
+            # 種牡馬タイプ_値
+            match_trand.at['row_0', 'father_type_v'] = get_match_factor_v(row2, race_trand_list, "FatherType", "種牡馬タイプ")
+
+            # BMS_値
+            match_trand.at['row_0', 'bms_v'] = get_match_factor_v(row2, race_trand_list, "Bms", "BMS")
+
+            # BMSタイプ_値
+            match_trand.at['row_0', 'bms_type_v'] = get_match_factor_v(row2, race_trand_list, "BmsType", "BMSタイプ")
+
+            # ニックス_値
+            match_trand.at['row_0', 'knicks_v'] = get_match_knicks_v(row2, race_trand_list, "ニックス")
+
+            # 合致結果をテーブルにINSERT
             upsert_match_factor(row2, match_trand)
 
             print("該当馬傾向抽出終了")
 
-    message1 = "処理が完了しました。PowerBIのデータセットを更新してください。\n"
+        # 出走馬負荷情報作成（オッズ、人気、馬体重、増減差、対戦型マイニング
+        # オッズ、人気取得
+        uma_eva_list = get_uma_odds(row)
+
+        # 馬体重取得
+        uma_eva_list = get_bataijyu(uma_eva_list, row)
+
+        # 対戦型マイニング取得
+        uma_eva_list = get_taisengata_mining(uma_eva_list, row)
+
+        # 対戦型マイニング人気、１位差算出処理
+
+        # 算出結果をXXXテーブルにINSERT
+        insert_uma_evaluation(row, uma_eva_list)
+
+    # UiPath実行
+    # subprocess.run([r"C:\Users\彰平\AppData\Local\UiPath\app-20.4.3\UiRobot.exe",
+    #                 r"--file 'C:\UiPath\PowerBI_new_publish\Main.xaml'"])
+
+    message1 = "傾向取得処理が完了しました。引き続き予想タイム処理の実行をお待ちください。\n"
     message = message1
-    payload = {'message' : message}
+    payload = {'message': message}
     requests.post(url, headers=headers, params=payload)
 
     print("全処理終了")
 
 # 該当条件で既に傾向抽出しているデータを削除する
-# レース単位
+# 傾向該当情報（レース単位）
 def delete_matched_race(row):
 
     db = conn.cursor(MySQLdb.cursors.DictCursor)
@@ -137,29 +186,226 @@ def delete_matched_race(row):
     db.execute(sql,(row['Year'], row['MonthDay'], row['JyoCD'], row['RaceNum']))
     conn.commit()
 
+# 該当条件で既に登録しているデータを削除する
+def delete_uma_evaluation(row):
+
+    db = conn.cursor(MySQLdb.cursors.DictCursor)
+    sql = 'delete from aggre_uma_evaluation where Year = %s and MonthDay = %s and JyoCD = %s and RaceNum = %s'
+    db.execute(sql,(row['Year'], row['MonthDay'], row['JyoCD'], row['RaceNum']))
+    conn.commit()
+
+
 # 当該馬の傾向合致内容をテーブルに登録（UPSERT）
 def upsert_match_factor(race, match):
 
     try:
-        pass
-        # データ登録用DataRrame作成
+        # データ登録用DataFrame作成
         upsert_data = pd.DataFrame({'Year':race['Year'], 'MonthDay':race['MonthDay'],'JyoCD':race['JyoCD'],
                                     'RaceNum':race['RaceNum'], 'Umaban':race['Umaban'], 'Bamei':race['Bamei'],
                                     'Wakuban':match['waku'], 'Kisyu':match['kisyu'],'Chokyosi':match['chokyosi'],
                                     'Father':match['father'], 'FatherType':match['father_type'], 'BMS':match['bms'],
-                                    'BMSType':match['bms_type'],'Knicks':match['knicks'], 'KnicksType':match['knicks_type']})
+                                    'BMSType':match['bms_type'],'Knicks':match['knicks'], 'KnicksType':match['knicks_type'],
+                                    'Wakuban_val': match['waku_v'], 'Kisyu_val': match['kisyu_v'], 'Chokyosi_val': match['chokyosi_v'],
+                                    'Father_val': match['father_v'], 'FatherType_val': match['father_type_v'],
+                                    'BMS_val': match['bms_v'], 'BMSType_val': match['bms_type_v'], 'Knicks_val': match['knicks_v']
+                                    })
         # print(upsert_data)
         # UPSERT処理
         tablename = "aggre_jadge_stock"
         upsert_data.to_sql(tablename, conn2, if_exists='append', index=False,
                            index_label={'Year', 'MonthDay', 'JyoCD', 'RaceNum', 'Umaban'})
 
-
     except Exception as e:
         print("upsert_match_factor() 当該馬傾向合致登録処理で例外発生")
         conn.close()
         print(e)
         payload = {'message': e }
+        requests.post(url, headers=headers, params=payload)
+        return e
+
+# ----------- 馬評価算出処理 ----------------------------------------
+# 馬オッズ取得
+def get_uma_odds(row):
+    year = row["Year"]
+    monthday = row["MonthDay"]
+    jyocd = row["JyoCD"]
+    raceNum = row["RaceNum"]
+
+    try:
+        # カーソル取得
+        db = conn.cursor(MySQLdb.cursors.DictCursor)
+
+        # 抽出レース　
+        sql = "select Year, MonthDay, JyoCD, RaceNum, Umaban, (Cast(TanOdds as decimal)/10) as Odds, " \
+              "TanNinki as Ninki from s_odds_tanpuku where Year = %(year)s and MonthDay = %(monthday)s " \
+              " and JyoCD = %(jyocd)s and  RaceNum = %(raceNum)s ; "
+        # print(sql)
+        # print("sql実行開始")
+        # PandasのDataFrameの型に合わせる方法
+        df = psql.read_sql(sql, conn,
+                           params={"year": year, "monthday": monthday, 'jyocd': jyocd, "raceNum": raceNum})
+
+        # print("sql実行終了")
+        # print(df)
+
+        db.close()
+
+        return df
+    except Exception as e:
+        print("get_uma_odds() 当該レースオッズ取得処理で例外発生")
+        conn.close()
+        print(e)
+        payload = {'message': e}
+        requests.post(url, headers=headers, params=payload)
+        return e
+
+# 馬体重情報取得
+def get_bataijyu(eva_list, row):
+    year = row["Year"]
+    monthday = row["MonthDay"]
+    jyocd = row["JyoCD"]
+    racenum = row["RaceNum"]
+
+    try:
+        # カーソル取得
+        db = conn.cursor(MySQLdb.cursors.DictCursor)
+
+        # 抽出レース
+        sql = "select * from s_bataijyu where Year = %(year)s and MonthDay = %(monthday)s " \
+              " and JyoCD = %(jyocd)s and  RaceNum = %(racenum)s ; "
+        # print(sql)
+        # print("sql実行開始")
+        # PandasのDataFrameの型に合わせる方法
+        df = psql.read_sql(sql, conn,
+                           params={"year": year, "monthday": monthday, 'jyocd': jyocd, "racenum": racenum})
+
+        # print("sql実行終了")
+        # print(df)
+
+        db.close()
+
+        col1 = 7
+        col2 = 8
+        col3 = 9
+
+        if df.empty:
+            eva_list.at[:, "bataijyu"] = ""
+            eva_list.at[:, "zogensa"] = ""
+            return eva_list
+
+        for i, row3 in eva_list.iterrows():
+
+            col1 += 5
+            col2 += 5
+            col3 += 5
+
+            # 取得した馬体重をeva_listにくっつける
+            uma_bataijyu = df.iloc[0, col1]
+            if uma_bataijyu is None:
+                eva_list.at[i, "bataijyu"] = ""
+                eva_list.at[i, "zogensa"] = ""
+                return eva_list
+            else:
+                uma_zogenfugo = df.iloc[0, col2]
+                uma_zogensa_tmp = df.iloc[0, col3]
+                if uma_zogensa_tmp == "":
+                    eva_list.at[i, "bataijyu"] = uma_bataijyu
+                    eva_list.at[i, "zogensa"] = ""
+                else:
+                    uma_zogensa = str(uma_zogenfugo) + str(int(uma_zogensa_tmp))
+                    # print(uma_zogensa)
+                    eva_list.at[i, "bataijyu"] = uma_bataijyu
+                    eva_list.at[i, "zogensa"] = uma_zogensa
+
+        return eva_list
+
+    except Exception as e:
+        print("get_bataijyu() 当該レース馬体重取得処理で例外発生")
+        conn.close()
+        print(e)
+        payload = {'message': e}
+        requests.post(url, headers=headers, params=payload)
+        return e
+
+# 対戦型マイニング取得
+def get_taisengata_mining(eva_list, row):
+    year = row["Year"]
+    monthday = row["MonthDay"]
+    jyocd = row["JyoCD"]
+    racenum = row["RaceNum"]
+
+    try:
+        # カーソル取得
+        db = conn.cursor(MySQLdb.cursors.DictCursor)
+
+        # 抽出レース
+        sql = "select * from s_taisengata_mining where Year = %(year)s and MonthDay = %(monthday)s " \
+              " and JyoCD = %(jyocd)s and  RaceNum = %(racenum)s ; "
+        # print(sql)
+        # print("sql実行開始")
+        # PandasのDataFrameの型に合わせる方法
+        df = psql.read_sql(sql, conn,
+                           params={"year": year, "monthday": monthday, 'jyocd': jyocd, "racenum": racenum})
+
+        # print("sql実行終了")
+        # print(df)
+        db.close()
+
+        col0 = 8
+        col1 = 9
+
+        if df.empty:
+            eva_list.at[:, "t_mining"] = ""
+            return eva_list
+
+        for i, row3 in eva_list.iterrows():
+
+            col0 += 2
+            col1 += 2
+
+            # 取得した対戦型マイニングをeva_listにくっつける
+            uma_tmining_tmp = df.iloc[0, col1]
+            if uma_tmining_tmp is None:
+                eva_list.at[i, "t_mining"] = ""
+                return eva_list
+            else:
+                uma_tmining = str(float(int(uma_tmining_tmp)/10))
+                # print(uma_tmining)
+                eva_list.at[i, "t_mining"] = uma_tmining
+
+        return eva_list
+
+        return df
+    except Exception as e:
+        print("get_taisengata_mining() 当該レース対戦型マイニング取得処理で例外発生")
+        conn.close()
+        print(e)
+        payload = {'message': e}
+        requests.post(url, headers=headers, params=payload)
+        return e
+
+# 馬評価テーブル登録（aggre_uma_evaluation）
+def insert_uma_evaluation(row, uma_eva):
+
+    try:
+        # データ登録用DataRrame作成
+        # （20200823）属性追加予定：オッズ、人気、馬体重、増減差、対戦型マインニング、マイニング人気、マイニング1位差
+        upsert_data = pd.DataFrame({'Year': uma_eva['Year'], 'MonthDay': uma_eva['MonthDay'], 'JyoCD': uma_eva['JyoCD'],
+                                    'RaceNum': uma_eva['RaceNum'], 'Umaban': uma_eva['Umaban'], 'Odds': uma_eva['Odds'],
+                                    'Ninki': uma_eva['Ninki'], 'Bataijyu': uma_eva['bataijyu'],
+                                    'Zogensa': uma_eva['zogensa'], 'Taisengata_mining':uma_eva['t_mining']
+                                    })
+        # print(upsert_data)
+        # UPSERT処理
+        tablename = "aggre_uma_evaluation"
+        upsert_data.to_sql(tablename, conn2, if_exists='append', index=False,
+                           index_label={'Year', 'MonthDay', 'JyoCD', 'RaceNum', 'Umaban'})
+
+    except Exception as e:
+        print("insert_uma_evaluation() 当該馬直前情報登録処理で例外発生")
+        conn.close()
+        print(e)
+        payload = {'message': e}
         requests.post(url, headers=headers, params=payload)
         return e
 
@@ -184,6 +430,26 @@ def get_match_factor(row2, race_trand_list, column_name, factor):
         print(return_value)
     return return_value
 
+# 汎用的傾向_合致結果抽出_値のみ（パーセント表記ではなく0.XX）
+def get_match_factor_v(row2, race_trand_list, column_name, factor):
+
+    column = row2[column_name]
+    # print(column )
+
+    row3 = race_trand_list[(race_trand_list["Factor"] == factor) & (race_trand_list["FactorValue"] == column)]
+    # print(row3)
+
+    # 値が空の場合は0.1を入れる（PowerBIで傾向を計算する際の仮値）
+    if row3.empty:
+        return_value = float(0.1)
+    else:
+        rate = row3["hukusyo_rate_2"].values[0]
+
+        # print(rate)
+        return_value = float(round(rate / 100, 3))
+        print(return_value)
+    return return_value
+
 # ニックス傾向_合致結果抽出
 def get_match_knicks(row2, race_trand_list, factor):
 
@@ -201,6 +467,27 @@ def get_match_knicks(row2, race_trand_list, factor):
 
         # print(rate)
         return_value = factor + " " + column + ": " + str(rate) + "%"
+        print(return_value)
+    return return_value
+
+# ニックス傾向_合致結果抽出
+def get_match_knicks_v(row2, race_trand_list, factor):
+
+    # 種牡馬名とBMSを結合
+    column = row2["Father"] + "×" + row2["Bms"]
+    print(column)
+
+    row3 = race_trand_list[(race_trand_list["Factor"] == factor) & (race_trand_list["FactorValue"] == column)]
+    # print(row3)
+
+    # 値が空の場合は0.1を入れる（PowerBIで傾向を計算する際の仮値）
+    if row3.empty:
+        return_value = float(0.1)
+    else:
+        rate = row3["hukusyo_rate_2"].values[0]
+
+        # print(rate)
+        return_value = float(round(rate / 100, 3))
         print(return_value)
     return return_value
 
@@ -397,6 +684,7 @@ def main():
     # 引数をコマンドラインから入力
     # 集計開始年
 
+
     args = sys.argv
 
     year = args[1]
@@ -405,23 +693,31 @@ def main():
 
     print(" year: " + year + " monthday :" + monthday + " time :" + time)
 
-    """    
+    """
     year = input("Year?: ")
 
     if not inputChk(year):
         print('---end---')
         sys.exit()
-    """
+    
 
     # テストデータ
-    # year = "2020"
-    # monthday = "0815"
-    # time = "0900"
+    year = "2021"
+    monthday = "0626"
+    time = "0800"
+    """
 
     # メイン処理を実行
-    execute(year, monthday, time)
+    try:
+        execute(year, monthday, time)
+    except Exception as e:
+        print("execute() 全体処理で例外発生")
+        conn.close()
+        print(e)
+        payload = {'message': e}
+        requests.post(url, headers=headers, params=payload)
+        return e
 
-
-
+# 実行開始
 if __name__ == '__main__':
     main()

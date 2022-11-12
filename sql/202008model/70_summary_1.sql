@@ -1,6 +1,6 @@
 -- Aggre_summary_stockからの集計用
 -- Yearはサマリーする
--- 抽出対象6件以上
+-- 抽出対象3件以上
 
 select 
 
@@ -20,7 +20,8 @@ from Aggre_summary_stock ast
 where ast.JyoCD = %(jyocd)s and ast.TrackCD = %(trackcd)s and ast.Kyori = %(kyori)s and ast.BabaCode = %(babacd)s
 
 group by ast.JyoCD, ast.TrackCD,ast.Kyori, ast.BabaCode, ast.Factor, ast.FactorValue
-having sum(kei) > 5 and hukusyo_rate_2 >= 25
+having sum(kei) > 2
+-- and hukusyo_rate_2 >= 25
 order by hukusyo_rate_2 desc
 -- limit 500
 ;

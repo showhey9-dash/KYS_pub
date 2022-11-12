@@ -58,7 +58,7 @@ def get_5th_blood_list(year):
     # カーソル取得
     db = conn.cursor(MySQLdb.cursors.DictCursor)
 
-    filePath = "../sql/5th_blood.sql"
+    filePath = "../sql/5th_blood_2.sql"
     targetSqlFile = open(filePath)
     sql = targetSqlFile.read()  # 終端まで読み込んだdataを返却
     # print(sql)
@@ -79,7 +79,7 @@ def calc_cross(year, df):
     # dataframeを1行取得する
     for i,row in df.iterrows():
 
-        print(row['Bamei'])
+        # print(row['Bamei'])
 
         # 血量計算済みリスト
         counted_list = []

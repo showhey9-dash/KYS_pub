@@ -262,7 +262,8 @@ class TenkaiEvaluation:
     def writeRaceMark2(self, resultHanteiList):
 
         # Target書き込み対象ファイル
-        path = "C:\TFJV\MY_DATA\RMark2\\"
+        # path = "C:\TFJV\MY_DATA\RMark2\\"
+        path = "C:\\Users\彰平\OneDrive - 三浦 彰平\TFJV\MY_DATA\RMark2\\"
 
         lineIndex = 0
         # リスト分繰り返し
