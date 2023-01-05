@@ -1,0 +1,25 @@
+-- TFの馬印と結果コメントを保持するテーブル
+CREATE TABLE `n_tf_shirushi_and_comment` (
+  `Year` varchar(4) NOT NULL,
+  `MonthDay` varchar(4) NOT NULL,
+  `JyoCD` varchar(2) NOT NULL,
+  `Kaiji` varchar(2) NOT NULL,
+  `Nichiji` varchar(2) NOT NULL,
+  `RaceNum` varchar(2) NOT NULL,
+  `Umaban` varchar(2) NOT NULL,
+  `YearYY` varchar(2) NOT NULL,
+  `Kettonum` varchar(10) DEFAULT '',
+  `Bamei` varchar(15) DEFAULT '',
+  `S1` varchar(4) DEFAULT '',
+  `S2` varchar(4) DEFAULT '',
+  `S3` varchar(4) DEFAULT '',
+  `S4` varchar(4) DEFAULT '',
+  `S5` varchar(4) DEFAULT '',
+  `S6` varchar(4) DEFAULT '',
+  `S7` varchar(4) DEFAULT '',
+  `S8` varchar(4) DEFAULT '',
+  `KekkaComment` varchar(200) DEFAULT '',
+  `RaceLV` varchar(5) DEFAULT '',
+  `updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`Year`,`MonthDay`,`JyoCD`,`RaceNum`,`Umaban`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
