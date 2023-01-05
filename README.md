@@ -7,5 +7,4 @@
 
 ##### 2019/05/18 モデルスコア　66点
 
-##### 予測に選出された出走馬の勝率｜回収率
-https://datastudio.google.com/open/1JyA7UW0P3Lhpqe6xO3Px52YETx-ua4sM
+
